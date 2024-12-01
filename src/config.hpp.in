@@ -1,0 +1,2 @@
+#pragma once
+#define BUILD_DIR "@CMAKE_BINARY_DIR@"

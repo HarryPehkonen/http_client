@@ -31,11 +31,6 @@ std::future<HTTPResponse> CurlHTTPClient::Put(const std::string& uri, const std:
 }
 
 std::future<HTTPResponse> CurlHTTPClient::Post(const std::string& uri, const std::string& body, const std::vector<std::string>& headers) {
-    spdlog::debug("CurlHTTPClient::POST");
-    for (const auto& header : headers) {
-        spdlog::debug(header);
-    };
-    spdlog::debug("Body: {}", body);
     return PerformRequest("POST", uri, body, headers);
 }
 
@@ -82,15 +77,30 @@ std::future<HTTPResponse> CurlHTTPClient::PerformRequest(const std::string& meth
             }
         }
 
+        // In CurlHTTPClient::PerformRequest, replace the error handling:
         CURLcode res = curl_easy_perform(m_curl);
 
-        if (curl_headers) {
-            curl_slist_free_all(curl_headers);
+        if (res != CURLE_OK) {
+            switch (res) {
+                case CURLE_COULDNT_CONNECT:
+                case CURLE_COULDNT_RESOLVE_HOST:
+                    throw http_client::ConnectionException(curl_easy_strerror(res));
+                case CURLE_OPERATION_TIMEDOUT:
+                    throw http_client::TimeoutException(curl_easy_strerror(res));
+                default:
+                    throw http_client::HTTPException(curl_easy_strerror(res));
+            }
         }
 
-        if (res != CURLE_OK) {
-            throw http_client::HTTPException(curl_easy_strerror(res));
-        }
+        // CURLcode res = curl_easy_perform(m_curl);
+
+        // if (curl_headers) {
+        //     curl_slist_free_all(curl_headers);
+        // }
+
+        // if (res != CURLE_OK) {
+        //     throw http_client::HTTPException(curl_easy_strerror(res));
+        // }
 
         long status_code;
         curl_easy_getinfo(m_curl, CURLINFO_RESPONSE_CODE, &status_code);

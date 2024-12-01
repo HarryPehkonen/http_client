@@ -1,57 +1,57 @@
 find_package(GTest REQUIRED)
 find_package(Threads REQUIRED)
 
-message(STATUS "Configuring tests for backend: ${HTTP_CLIENT_BACKEND}")
+# Find Deno for test server
+find_program(DENO_EXECUTABLE deno REQUIRED)
+message(STATUS "Found Deno: ${DENO_EXECUTABLE}")
 
-# Select test file based on backend
-if(HTTP_CLIENT_BACKEND STREQUAL "CURL")
-    set(TEST_SOURCE curl_client_tests.cpp)
-    set(TEST_LIBS
-        http_client
-        spdlog::spdlog
-        GTest::GTest
-        GTest::Main
-        Threads::Threads
-        CURL::libcurl
-    )
-elseif(HTTP_CLIENT_BACKEND STREQUAL "HTTPLIB")
-    set(TEST_SOURCE httplib_client_tests.cpp)
-    set(TEST_LIBS
-        http_client
-        httplib
-        spdlog::spdlog
-        GTest::GTest
-        GTest::Main
-        Threads::Threads
-        OpenSSL::SSL
-        OpenSSL::Crypto
-    )
-else()
-    message(FATAL_ERROR "Unknown HTTP_CLIENT_BACKEND: ${HTTP_CLIENT_BACKEND}")
-endif()
+# Add nlohmann_json
+include(FetchContent)
+FetchContent_Declare(json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(json)
 
-message(STATUS "Using test source: ${TEST_SOURCE}")
-message(STATUS "Using test libraries: ${TEST_LIBS}")
+# Create test executable
+add_executable(http_client_tests
+    test_main.cpp
+    http_client_tests.cpp
+)
 
-add_executable(http_client_tests ${TEST_SOURCE})
-
+# Configure the test executable
 target_include_directories(http_client_tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_BINARY_DIR}/generated
 )
-
-# Add backend-specific compile definitions
-if(HTTP_CLIENT_BACKEND STREQUAL "HTTPLIB")
-    target_compile_definitions(http_client_tests
-        PRIVATE
-            CPPHTTPLIB_OPENSSL_SUPPORT
-            CPPHTTPLIB_USE_CERTS_FROM_SYSTEM
-    )
-endif()
 
 target_link_libraries(http_client_tests
     PRIVATE
-        ${TEST_LIBS}
+        http_client
+        GTest::GTest
+        GTest::Main
+        nlohmann_json::nlohmann_json
+)
+
+# Add compile definition to inform tests which backend is being used
+if(HTTP_CLIENT_BACKEND STREQUAL "CURL")
+    target_compile_definitions(http_client_tests PRIVATE HTTP_CLIENT_BACKEND=CURL)
+elseif(HTTP_CLIENT_BACKEND STREQUAL "HTTPLIB")
+    target_compile_definitions(http_client_tests PRIVATE HTTP_CLIENT_BACKEND=HTTPLIB)
+endif()
+
+# Copy test server script
+configure_file(
+    ${CMAKE_SOURCE_DIR}/tests/server/test_server.ts
+    ${CMAKE_BINARY_DIR}/tests/test_server.ts
+    COPYONLY
+)
+
+# Generate config header
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/config.hpp.in
+    ${CMAKE_BINARY_DIR}/generated/config.hpp
 )
 
 add_test(NAME http_client_tests COMMAND http_client_tests)
