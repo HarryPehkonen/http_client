@@ -141,3 +141,19 @@ if(BUILD_TESTING)
 
     add_test(NAME http_client_tests COMMAND http_client_tests)
 endif()
+
+# Get all targets in current directory
+get_directory_property(targets BUILDSYSTEM_TARGETS)
+message(STATUS "Available targets: ${targets}")
+
+# For each target, show its properties
+foreach(target ${targets})
+    get_target_property(target_type ${target} TYPE)
+    message(STATUS "${target} is a ${target_type}")
+    
+    get_target_property(libs ${target} LINK_LIBRARIES)
+    message(STATUS "${target} links to: ${libs}")
+    
+    get_target_property(include_dirs ${target} INCLUDE_DIRECTORIES)
+    message(STATUS "${target} includes: ${include_dirs}")
+endforeach()
